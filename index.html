@@ -111,7 +111,7 @@
       ]).then(initialize);
 
       function initialize([france, birthsRaw]) {
-        /* ---------- 1. projection + static map ---------- */
+        /* ────────────────────────── 1.  projection + base map */
         projection.fitSize([width, height], france);
 
         const depts = svg
@@ -124,7 +124,7 @@
           .attr("class", "dept")
           .attr("fill", "#eee");
 
-        /* ---------- 2. tooltip helpers ---------- */
+        /* ────────────────────────── 2.  tooltip helpers */
         let totals = new Map();
         let currentName = "";
 
@@ -144,7 +144,7 @@
           })
           .on("mouseout", () => tooltip.style("opacity", 0));
 
-        /* ---------- 3. data roll-up ---------- */
+        /* ────────────────────────── 3.  data roll-up */
         const births = d3.rollup(
           birthsRaw,
           (v) =>
@@ -161,55 +161,94 @@
           (r) => r.dpt
         );
 
-        /* ---------- 4. autocomplete setup ---------- */
+        /* ────────────────────────── 4.  autocomplete setup */
         const allNames = Array.from(
           new Set(birthsRaw.map((r) => r.name))
         ).sort();
-
         const nameInput = d3.select("#nameInput");
         const yearFrom = d3.select("#yearFrom");
         const yearTo = d3.select("#yearTo");
         const datalist = d3.select("#nameList");
-
-        /* add list attr if the HTML forgot it */
         if (!nameInput.attr("list")) nameInput.attr("list", "nameList");
 
         nameInput.on("input", () => {
           const q = nameInput.property("value").trim().toUpperCase();
-          const suggestions = q
+          const sugg = q
             ? allNames.filter((n) => n.startsWith(q)).slice(0, 10)
             : allNames.slice(0, 10);
-
           datalist.selectAll("option").remove();
           datalist
             .selectAll("option")
-            .data(suggestions)
+            .data(sugg)
             .enter()
             .append("option")
             .attr("value", (d) => d);
-
           update();
         });
 
         yearFrom.on("input change", clampYears);
         yearTo.on("input change", clampYears);
 
-        /* ---------- 5. helpers ---------- */
+        /* ────────────────────────── 5.  colour-bar legend (static scaffolding) */
+        const legendWidth = 18,
+          legendHeight = 200,
+          legendX = width - legendWidth - 40,
+          legendY = 20;
+
+        // defs + gradient
+        const defs = svg.append("defs");
+        const grad = defs
+          .append("linearGradient")
+          .attr("id", "legendGrad")
+          .attr("x1", 0)
+          .attr("y1", 1) // vertical
+          .attr("x2", 0)
+          .attr("y2", 0);
+
+        // 10 evenly spaced stops – colours are set inside update()
+        grad
+          .selectAll("stop")
+          .data(d3.range(0, 1.001, 0.1))
+          .enter()
+          .append("stop")
+          .attr("offset", (d) => d)
+          .attr("stop-color", "#eee");
+
+        // legend group
+        const legendG = svg
+          .append("g")
+          .attr("transform", `translate(${legendX},${legendY})`);
+
+        // colour bar rectangle
+        legendG
+          .append("rect")
+          .attr("width", legendWidth)
+          .attr("height", legendHeight)
+          .attr("fill", "url(#legendGrad)")
+          .attr("stroke", "#666")
+          .attr("stroke-width", 0.5);
+
+        // axis (scale domain set inside update())
+        const legendScale = d3.scaleLinear().range([legendHeight, 0]);
+
+        const legendAxis = legendG
+          .append("g")
+          .attr("class", "legendAxis")
+          .attr("transform", `translate(${legendWidth},0)`);
+
+        /* ────────────────────────── 6.  helpers */
         function clampYears() {
           let f = +yearFrom.property("value");
           let t = +yearTo.property("value");
-
           f = Math.max(1900, Math.min(2020, f));
           t = Math.max(1900, Math.min(2020, t));
           if (t < f) [f, t] = [t, f];
-
           yearFrom.property("value", f);
           yearTo.property("value", t);
-
           update();
         }
 
-        /* ---------- 6. map repaint ---------- */
+        /* ────────────────────────── 7.  map + legend repaint */
         function update() {
           currentName = nameInput.property("value").trim().toUpperCase();
           const f = +yearFrom.property("value");
@@ -225,15 +264,29 @@
             }
           });
 
-          const max = d3.max(totals.values());
-          const col = d3
+          const max = d3.max(totals.values()) || 1;
+          const colour = d3
             .scaleSequential()
-            .domain([0, max || 1])
+            .domain([0, max])
             .interpolator(d3.interpolateBlues);
 
+          // ─ map fill
           depts
-            .attr("fill", (d) => col(totals.get(d.properties.code) || 0))
+            .attr("fill", (d) => colour(totals.get(d.properties.code) || 0))
             .attr("data-count", (d) => totals.get(d.properties.code) || 0);
+
+          // ─ legend gradient colours
+          grad.selectAll("stop").attr("stop-color", (d) => colour(d * max));
+
+          // ─ legend axis
+          legendScale.domain([0, max]);
+          legendAxis.call(
+            d3
+              .axisRight(legendScale)
+              .ticks(6)
+              .tickFormat(d3.format(","))
+              .tickSize(3)
+          );
         }
 
         /* first paint */
