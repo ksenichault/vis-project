@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>French baby-name popularity map (D3)</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 1rem;
+        background: #fafafa;
+      }
+      #controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+      label {
+        font-weight: 600;
+      }
+      input[type="text"] {
+        padding: 0.3rem 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        min-width: 110px;
+      }
+      input[type="number"] {
+        width: 5rem;
+      }
+      svg {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+      .dept {
+        stroke: white;
+        stroke-width: 0.7;
+      }
+      .tooltip {
+        pointer-events: none;
+        position: absolute;
+        opacity: 0;
+        background: #333;
+        color: #fff;
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <label>
+        Name :
+        <input
+          id="nameInput"
+          type="text"
+          value="ANNA"
+          placeholder="first name"
+        />
+        <datalist id="nameList"></datalist>
+      </label>
+
+      <label>
+        Year from
+        <input id="yearFrom" type="number" value="1900" min="1900" max="2020" />
+      </label>
+      <label>
+        to
+        <input id="yearTo" type="number" value="2020" min="1900" max="2020" />
+      </label>
+    </div>
+
+    <svg id="map" width="800" height="600"></svg>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script src="libs/d3.v7.min.js"></script>
+    <!-- topojson is optional; we’re using GeoJSON directly -->
+    <script>
+      // ---------- Config ----------
+      const csvFile = "./data/dpt2020.csv";
+      const geoFile = "./data/departements-version-simplifiee.geojson"; // simplified GeoJSON
+      const width = 800,
+        height = 600;
+      const svg = d3.select("#map").attr("viewBox", [0, 0, width, height]);
+
+      const tooltip = d3.select("#tooltip");
+
+      const projection = d3
+        .geoConicConformal() // Lambert 93-ish
+        .center([2.454071, 46.279229]) // France centre
+        .scale(2600) // tweak so it fits
+        .translate([width / 2, height / 2]);
+
+      const path = d3.geoPath(projection);
+
+      // ---------- Load data ----------
+      Promise.all([
+        d3.json(geoFile),
+        d3.dsv(";", csvFile, (row) => ({
+          // correct function param
+          // skip the “_PRENOMS_RARES” and bogus 'XX' rows if you like
+          dpt: row.dpt,
+          name: row.preusuel.toUpperCase(),
+          year: +row.annais,
+          count: +row.nombre,
+        })),
+      ]).then(initialize);
+
+      function initialize([france, birthsRaw]) {
+        /* ---------- 1. projection + static map ---------- */
+        projection.fitSize([width, height], france);
+
+        const depts = svg
+          .append("g")
+          .selectAll("path")
+          .data(france.features)
+          .enter()
+          .append("path")
+          .attr("d", path)
+          .attr("class", "dept")
+          .attr("fill", "#eee");
+
+        /* ---------- 2. tooltip helpers ---------- */
+        let totals = new Map();
+        let currentName = "";
+
+        const tooltipHtml = (p) => `
+      <strong>${p.nom} (${p.code})</strong><br>
+      ${currentName ? currentName[0] + currentName.slice(1).toLowerCase() : "—"}
+      : <strong>${totals.get(p.code) || 0}</strong>`;
+
+        depts
+          .on("mousemove", (e, d) => {
+            const [mx, my] = d3.pointer(e);
+            tooltip
+              .style("opacity", 1)
+              .style("left", mx + 15 + "px")
+              .style("top", my + 15 + "px")
+              .html(tooltipHtml(d.properties));
+          })
+          .on("mouseout", () => tooltip.style("opacity", 0));
+
+        /* ---------- 3. data roll-up ---------- */
+        const births = d3.rollup(
+          birthsRaw,
+          (v) =>
+            d3.rollup(
+              v,
+              (vv) =>
+                d3.rollup(
+                  vv,
+                  (vvv) => d3.sum(vvv, (r) => r.count),
+                  (r) => r.year
+                ),
+              (r) => r.name
+            ),
+          (r) => r.dpt
+        );
+
+        /* ---------- 4. autocomplete setup ---------- */
+        const allNames = Array.from(
+          new Set(birthsRaw.map((r) => r.name))
+        ).sort();
+
+        const nameInput = d3.select("#nameInput");
+        const yearFrom = d3.select("#yearFrom");
+        const yearTo = d3.select("#yearTo");
+        const datalist = d3.select("#nameList");
+
+        /* add list attr if the HTML forgot it */
+        if (!nameInput.attr("list")) nameInput.attr("list", "nameList");
+
+        nameInput.on("input", () => {
+          const q = nameInput.property("value").trim().toUpperCase();
+          const suggestions = q
+            ? allNames.filter((n) => n.startsWith(q)).slice(0, 10)
+            : allNames.slice(0, 10);
+
+          datalist.selectAll("option").remove();
+          datalist
+            .selectAll("option")
+            .data(suggestions)
+            .enter()
+            .append("option")
+            .attr("value", (d) => d);
+
+          update();
+        });
+
+        yearFrom.on("input change", clampYears);
+        yearTo.on("input change", clampYears);
+
+        /* ---------- 5. helpers ---------- */
+        function clampYears() {
+          let f = +yearFrom.property("value");
+          let t = +yearTo.property("value");
+
+          f = Math.max(1900, Math.min(2020, f));
+          t = Math.max(1900, Math.min(2020, t));
+          if (t < f) [f, t] = [t, f];
+
+          yearFrom.property("value", f);
+          yearTo.property("value", t);
+
+          update();
+        }
+
+        /* ---------- 6. map repaint ---------- */
+        function update() {
+          currentName = nameInput.property("value").trim().toUpperCase();
+          const f = +yearFrom.property("value");
+          const t = +yearTo.property("value");
+
+          totals = new Map();
+          births.forEach((nm, dpt) => {
+            const yrs = nm.get(currentName);
+            if (yrs) {
+              let s = 0;
+              for (let y = f; y <= t; y++) s += yrs.get(y) || 0;
+              if (s) totals.set(dpt, s);
+            }
+          });
+
+          const max = d3.max(totals.values());
+          const col = d3
+            .scaleSequential()
+            .domain([0, max || 1])
+            .interpolator(d3.interpolateBlues);
+
+          depts
+            .attr("fill", (d) => col(totals.get(d.properties.code) || 0))
+            .attr("data-count", (d) => totals.get(d.properties.code) || 0);
+        }
+
+        /* first paint */
+        clampYears(); // also calls update()
+      }
+    </script>
+  </body>
+</html>
