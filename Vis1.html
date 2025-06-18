@@ -38,7 +38,7 @@
       background: white;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 20px;
+      padding: 20px 20px 15px 20px; /* 减少底部内边距 */
       display: flex;
       flex-direction: column;
       min-width: 0;
@@ -50,6 +50,17 @@
       border: 1px solid #e5e7eb;
       border-radius: 6px;
       padding: 15px;
+      min-height: 0; /* 允许flex收缩 */
+    }
+    
+    .year-control {
+      margin-top: auto; /* 推到底部 */
+      margin-bottom: 0; /* 移除底部外边距 */
+      padding: 15px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      flex-shrink: 0; /* 防止收缩 */
     }
     
     .ranking-title {
@@ -184,10 +195,20 @@
       background: white;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 15px;
+      padding: 15px 15px 10px 15px; /* 减少底部内边距 */
       display: flex;
       flex-direction: column;
       min-width: 0;
+    }
+    
+    .heatmap-container {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px;
+      min-height: 0;
+      margin-bottom: 0; /* 移除底部外边距 */
     }
     .heatmap-controls {
       margin-bottom: 15px;
@@ -230,16 +251,29 @@
       font-size: 1rem;
     }
     
+    /* 响应式设计调整 */
     @media (max-width: 1024px) {
       .content-wrapper {
         flex-direction: column;
         height: auto;
+        gap: 10px; /* 减少间距 */
       }
       .left-panel {
         min-height: 150px;
+        padding: 15px 15px 10px 15px; /* 移动端减少内边距 */
       }
       .right-panel {
         min-height: 400px;
+        padding: 15px 15px 10px 15px; /* 移动端减少内边距 */
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .main-container {
+        padding: 8px; /* 减少容器内边距 */
+      }
+      .left-panel, .right-panel {
+        padding: 12px 12px 8px 12px; /* 进一步减少内边距 */
       }
     }
     
