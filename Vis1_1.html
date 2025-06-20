@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Baby-Name Trend Explorer</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      font-family: sans-serif;
+      background: #f0f0f0;
+    }
+    #container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+    .section {
+      flex: 1;
+      background: white;
+      margin: 0.5rem;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    h2 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+    #controls input {
+      font-size: 1.2rem;
+      padding: 0.6rem 1rem;
+      flex: 0 1 200px;
+    }
+    #controls button {
+      font-size: 1.2rem;
+      padding: 0.6rem 1.2rem;
+    }
+    #selectedNames {
+      margin-top: 1rem;
+    }
+    #selectedNames span {
+      display: inline-block;
+      background: #e0e0e0;
+      border-radius: 1rem;
+      padding: 0.4rem 1rem;
+      margin: 0.4rem;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    #chart svg {
+      width: 100%;
+      height: 100%;
+    }
+    .line {
+      fill: none;
+      stroke-width: 2.5px;
+    }
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: #fff;
+      border: 1px solid #888;
+      padding: 0.5rem 0.6rem;
+      font-size: 1.1rem;
+      border-radius: 0.4rem;
+      box-shadow: 0 0 6px rgba(0,0,0,.15);
+    }
+    #legend {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255,255,255,0.95);
+      padding: 0.8rem 1rem;
+      border-radius: 0.6rem;
+      box-shadow: 0 0 6px rgba(0,0,0,.1);
+      font-size: 1rem;
+    }
+    #legend div {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.6rem;
+    }
+    #legend svg {
+      margin-right: 0.5rem;
+    }
+    #suggestions {
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 10;
+      font-size: 1rem;
+    }
+    #suggestions div {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+    #suggestions div:hover {
+      background: #eee;
+    }
+  </style>
+</head>
+<body>
+<div id="container">
+  <div class="section">
+    <h2>How do baby names evolve over time?</h2>
+    <div id="controls">
+      <input id="nameInput" type="text" placeholder="Enter a name…" autocomplete="off" />
+      <div id="suggestions"></div>
+      <button id="addBtn">Add</button>
+      <button id="showTop5">Show Top5 Exploding Names</button>
+      <button id="showTop5Drop">Show Top5 Collapsing Names</button>
+    </div>
+    <div id="selectedNames"></div>
+  </div>
+  <div class="section">
+    <div id="chart"></div>
+    <div id="legend"></div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const margin = { top: 30, right: 30, bottom: 50, left: 60 },
+        width = 1000 - margin.left - margin.right,
+        height = 500 - margin.top - margin.bottom;
+
+  const svg = d3.select("#chart").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const xScale = d3.scaleLinear().range([0, width]);
+  const yScale = d3.scaleLinear().range([height, 0]);
+  const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+  svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height})`);
+  svg.append("g").attr("class", "y-axis");
+  svg.append("text")
+    .attr("x", width / 2)
+    .attr("y", height + 40)
+    .attr("text-anchor", "middle")
+    .text("Year");
+
+  svg.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -height / 2)
+    .attr("y", -40)
+    .attr("text-anchor", "middle")
+    .text("Number of births");
+
+  const tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
+
+  const rawText = await d3.text("dpt2020.csv");
+  const parse = d3.dsvFormat(";").parse;
+
+  let data = parse(rawText, d => ({
+    name: d.preusuel,
+    year: +d.annais,
+    births: +d.nombre
+  })).filter(d => d.name !== "_PRENOMS_RARES" && !isNaN(d.year));
+
+  const allYears = d3.extent(data, d => d.year);
+  xScale.domain(allYears);
+
+  const grouped = d3.rollups(
+    data,
+    v => d3.sum(v, d => d.births),
+    d => d.name,
+    d => d.year
+  );
+
+  const seriesMap = new Map();
+  grouped.forEach(([name, yearMap]) => {
+    const values = Array.from(yearMap, ([year, b]) => ({ year: +year, births: b }))
+      .sort((a, b) => a.year - b.year);
+    seriesMap.set(name.toUpperCase(), { name, values });
+  });
+
+  let selected = [];
+
+  function renderLegend() {
+    const legend = d3.select("#legend");
+    legend.selectAll("div").remove();
+    selected.forEach(name => {
+      const div = legend.append("div");
+      div.append("svg").attr("width", 20).attr("height", 10)
+        .append("line")
+        .attr("x1", 0).attr("x2", 20).attr("y1", 5).attr("y2", 5)
+        .attr("stroke-width", 3).attr("stroke", color(name));
+      div.append("span").text(name);
+    });
+  }
+
+  function render() {
+    svg.selectAll(".dot").remove();
+
+    selected = selected.filter(n => seriesMap.has(n));
+    d3.select("#selectedNames").selectAll("span")
+      .data(selected, d => d)
+      .join(
+        enter => enter.append("span")
+          .text(d => d + " ✖")
+          .on("click", (e, d) => {
+            selected = selected.filter(n => n !== d);
+            render();
+          }),
+        update => update.text(d => d + " ✖"),
+        exit => exit.remove()
+      );
+
+    const maxBirths = d3.max(selected, name =>
+      d3.max(seriesMap.get(name).values, v => v.births)
+    ) || 1;
+    yScale.domain([0, maxBirths]);
+
+    svg.select(".x-axis")
+      .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+    svg.select(".y-axis")
+      .transition().duration(400)
+      .call(d3.axisLeft(yScale));
+
+    const lineGen = d3.line()
+      .x(d => xScale(d.year))
+      .y(d => yScale(d.births));
+
+    svg.selectAll(".line")
+      .data(selected, d => d)
+      .join(
+        enter => enter.append("path")
+          .attr("class", "line")
+          .attr("stroke", d => color(d))
+          .attr("d", d => lineGen(seriesMap.get(d).values)),
+        update => update.transition().duration(400)
+          .attr("stroke", d => color(d))
+          .attr("d", d => lineGen(seriesMap.get(d).values)),
+        exit => exit.remove()
+      );
+
+    selected.forEach(name => addDots(name));
+    renderLegend();
+  }
+
+  function addDots(name) {
+    const safeClass = name.replace(/[^a-zA-Z0-9]/g, "_");
+    svg.selectAll(`.dot-${safeClass}`).remove();
+
+    svg.selectAll(`.dot-${safeClass}`)
+      .data(seriesMap.get(name).values)
+      .enter()
+      .append("circle")
+      .attr("class", `dot dot-${safeClass}`)
+      .attr("cx", d => xScale(d.year))
+      .attr("cy", d => yScale(d.births))
+      .attr("r", 3)
+      .attr("fill", color(name))
+      .on("mouseover", (e, d) => {
+        tooltip.html(`<strong>${name}</strong><br>${d.year}: ${d.births}`)
+          .style("left", (e.pageX + 10) + "px")
+          .style("top", (e.pageY - 28) + "px")
+          .transition().style("opacity", 1);
+      })
+      .on("mouseout", () => tooltip.transition().style("opacity", 0));
+  }
+
+  const nameInput = document.getElementById("nameInput");
+  const suggestions = document.getElementById("suggestions");
+
+  nameInput.addEventListener("input", () => {
+    const query = nameInput.value.trim().toUpperCase();
+    if (!query) return suggestions.innerHTML = "";
+    const matches = Array.from(seriesMap.keys()).filter(name => name.startsWith(query));
+    suggestions.innerHTML = "";
+    matches.forEach(name => {
+      const div = document.createElement("div");
+      div.textContent = name;
+      div.onclick = () => {
+        nameInput.value = name;
+        suggestions.innerHTML = "";
+      };
+      suggestions.appendChild(div);
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!suggestions.contains(e.target) && e.target !== nameInput) {
+      suggestions.innerHTML = "";
+    }
+  });
+
+  d3.select("#addBtn").on("click", () => {
+    const raw = nameInput.value.trim().toUpperCase();
+    if (!raw) return;
+    if (!seriesMap.has(raw)) {
+      alert(`Name "${raw}" not found in data.`);
+      return;
+    }
+    if (!selected.includes(raw)) {
+      selected.push(raw);
+      render();
+    }
+    nameInput.value = "";
+    suggestions.innerHTML = "";
+  });
+
+  d3.select("#showTop5").on("click", () => {
+    const growth = [];
+    seriesMap.forEach(({ name, values }) => {
+      if (values.length < 3) return;
+      let maxGrowth = 0;
+      let maxTotal = 0;
+      for (let i = 0; i < values.length - 3; i++) {
+        const delta = values[i + 3].births - values[i].births;
+        if (delta > maxGrowth) maxGrowth = delta;
+        maxTotal = Math.max(maxTotal, values[i].births, values[i + 1].births, values[i + 2].births, values[i + 3].births);
+      }
+      if (maxTotal >= 50 && maxGrowth >= 10) {
+        growth.push({ name, growth: maxGrowth });
+      }
+    });
+    const top10 = growth.sort((a, b) => b.growth - a.growth).slice(0, 5).map(d => d.name);
+    selected = top10;
+    render();
+  });
+
+  d3.select("#showTop5Drop").on("click", () => {
+    const drops = [];
+    seriesMap.forEach(({ name, values }) => {
+      if (values.length < 3) return;
+      let maxDrop = 0;
+      let maxTotal = 0;
+      for (let i = 0; i < values.length - 3; i++) {
+        const delta = values[i + 3].births - values[i].births;
+        if (delta < maxDrop) maxDrop = delta;
+        maxTotal = Math.max(maxTotal, values[i].births, values[i + 1].births, values[i + 2].births);
+      }
+      if (maxTotal >= 50 && maxDrop <= -10) {
+        drops.push({ name, drop: maxDrop });
+      }
+    });
+    const top5 = drops.sort((a, b) => a.drop - b.drop).slice(0, 5).map(d => d.name);
+    selected = top5;
+    render();
+  });
+
+  selected = ["EMMA", "LÉO"];
+  render();
+})();
+</script>
+</body>
+</html>
