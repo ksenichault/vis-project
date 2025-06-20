@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>French Baby Names Visualization Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+    <link rel="stylesheet" href="https://unpkg.com/tailwindcss@^3/dist/tailwind.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
+        }
+        .dashboard-container {
+            width: 100%;
+            min-height: 100vh;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .visualization-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .vis-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 15px;
+            min-height: 500px;
+        }
+        .vis-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 10px;
+            text-align: center;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 8px;
+        }
+        .nav-tab {
+            padding: 12px 24px;
+            margin: 0 5px;
+            background: #f3f4f6;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .nav-tab.active {
+            background: #3b82f6;
+            color: white;
+        }
+        .nav-tab:hover {
+            background: #6b7280;
+            color: white;
+        }
+        .vis-content {
+            display: none;
+        }
+        .vis-content.active {
+            display: block;
+        }
+        iframe {
+            width: 100%;
+            height: 700px;
+            border: none;
+            border-radius: 8px;
+        }
+        .vis3-iframe {
+            height: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">French Baby Names Analysis Dashboard</h1>
+            <p class="text-lg text-gray-600">Explore trends, geographic distribution, and gender patterns in French baby names (1900-2020)</p>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showVisualization('vis1')">Name Trends</button>
+            <button class="nav-tab" onclick="showVisualization('vis2')">Geographic Distribution</button>
+            <button class="nav-tab" onclick="showVisualization('vis3')">Gender Analysis</button>
+        </div>
+
+        <div class="visualization-grid">
+            <div class="vis-section">
+                <!-- Visualization 1: Name Trends -->
+                <div id="vis1" class="vis-content active">
+                    <div class="vis-title">Baby Name Trends Over Time</div>
+                    <iframe src="Vis1.html" title="Baby Name Trends Visualization"></iframe>
+                </div>
+
+                <!-- Visualization 2: Geographic Distribution -->
+                <div id="vis2" class="vis-content">
+                    <div class="vis-title">Geographic Distribution of Names</div>
+                    <iframe src="Vis2.html" title="Geographic Distribution Visualization"></iframe>
+                </div>
+
+                <!-- Visualization 3: Gender Analysis -->
+                <div id="vis3" class="vis-content">
+                    <div class="vis-title">Unisex Names Gender Analysis</div>
+                    <iframe src="Vis3.html" title="Unisex Names Gender Analysis" class="vis3-iframe"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <div class="header">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-3">About This Dashboard</h2>
+            <div class="text-left text-gray-600 space-y-2">
+                <p><strong>Name Trends:</strong> How do baby names evolve over time? Are there names that have consistently remained popular or unpopular?<br>Are there some that have were suddenly or briefly popular or unpopular? Are there trends in time?</p>
+                <p><strong>Geographic Distribution:</strong> Is there a regional effect in the data? Are some names more popular in some regions?<br>Are popular names generally popular across the whole country?</p>
+                <p><strong>Gender Analysis:</strong> Are there gender effects in the data? Does popularity of names given to both sexes evolve consistently?</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showVisualization(visId) {
+            // Hide all visualizations
+            const allVis = document.querySelectorAll('.vis-content');
+            allVis.forEach(vis => vis.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const allTabs = document.querySelectorAll('.nav-tab');
+            allTabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected visualization
+            document.getElementById(visId).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // Initialize the dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            // The first visualization is already active by default
+        });
+    </script>
+</body>
+</html>
