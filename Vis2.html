@@ -111,7 +111,7 @@
       ]).then(initialize);
 
       function initialize([france, birthsRaw]) {
-        /* ────────────────────────── 1.  projection + base map */
+        /* ───────────────── 1.  projection + base map */
         projection.fitSize([width, height], france);
 
         const depts = svg
@@ -124,14 +124,24 @@
           .attr("class", "dept")
           .attr("fill", "#eee");
 
-        /* ────────────────────────── 2.  tooltip helpers */
-        let totals = new Map();
-        let currentName = "";
+        /* ───────────────── 2.  shared state */
+        const selected = new Set(); // TAGGED names (UPPER-CASE)
+        let totals = new Map(); // dpt → combined count
+        let latestType = ""; // current text in the box
 
-        const tooltipHtml = (p) => `
-      <strong>${p.nom} (${p.code})</strong><br>
-      ${currentName ? currentName[0] + currentName.slice(1).toLowerCase() : "—"}
-      : <strong>${totals.get(p.code) || 0}</strong>`;
+        /* ───────────────── 3.  tooltip */
+        const tooltipHtml = (p) => {
+          const lines = [];
+          selected.forEach((n) => {
+            const v = nameTotals.get(n)?.get(p.code) ?? 0;
+            lines.push(
+              `${n[0]}${n.slice(1).toLowerCase()}: <strong>${v}</strong>`
+            );
+          });
+          const sum = totals.get(p.code) || 0;
+          return `<strong>${p.nom} (${p.code})</strong><br>${lines.join("<br>")}
+            ${selected.size > 1 ? `<hr>Total: <strong>${sum}</strong>` : ""}`;
+        };
 
         depts
           .on("mousemove", (e, d) => {
@@ -144,7 +154,7 @@
           })
           .on("mouseout", () => tooltip.style("opacity", 0));
 
-        /* ────────────────────────── 3.  data roll-up */
+        /* ───────────────── 4.  data roll-ups */
         const births = d3.rollup(
           birthsRaw,
           (v) =>
@@ -161,82 +171,78 @@
           (r) => r.dpt
         );
 
-        /* ────────────────────────── 4.  autocomplete setup */
-        const allNames = Array.from(
-          new Set(birthsRaw.map((r) => r.name))
-        ).sort();
+        const nameTotals = new Map(); // name → Map(dpt → all-years sum)
+        births.forEach((nameMap, dpt) => {
+          nameMap.forEach((yearMap, n) => {
+            let m = nameTotals.get(n);
+            if (!m) {
+              m = new Map();
+              nameTotals.set(n, m);
+            }
+            m.set(dpt, d3.sum(yearMap.values()));
+          });
+        });
+
+        /* ───────────────── 5.  controls */
+        const allNames = Array.from(nameTotals.keys()).sort();
         const nameInput = d3.select("#nameInput");
+        const datalist = d3.select("#nameList");
         const yearFrom = d3.select("#yearFrom");
         const yearTo = d3.select("#yearTo");
-        const datalist = d3.select("#nameList");
         if (!nameInput.attr("list")) nameInput.attr("list", "nameList");
 
+        const tagBar = d3
+          .select("#controls")
+          .append("div")
+          .attr("id", "tagBar")
+          .style("display", "flex")
+          .style("gap", ".4rem")
+          .style("align-items", "center");
+
         nameInput.on("input", () => {
-          const q = nameInput.property("value").trim().toUpperCase();
+          latestType = nameInput.property("value").trim().toUpperCase();
+
+          const q = latestType;
           const sugg = q
             ? allNames.filter((n) => n.startsWith(q)).slice(0, 10)
             : allNames.slice(0, 10);
+
           datalist.selectAll("option").remove();
           datalist
             .selectAll("option")
             .data(sugg)
             .enter()
             .append("option")
-            .attr("value", (d) => d);
-          update();
+            .attr("value", (d) => d[0] + d.slice(1).toLowerCase());
+
+          /* ★ always keep the list attribute—some browsers drop it */
+          nameInput.attr("list", "nameList"); /* ★ */
+
+          update(); // still live-preview if no tag yet
         });
+
+        nameInput.on("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            tryAddTag();
+          }
+        });
+        nameInput.on("change", tryAddTag);
+
+        function tryAddTag() {
+          const cand = nameInput.property("value").trim().toUpperCase();
+          if (cand && nameTotals.has(cand) && !selected.has(cand)) {
+            selected.add(cand);
+            renderTags();
+            nameInput.property("value", "");
+            latestType = "";
+            update();
+          }
+        }
 
         yearFrom.on("input change", clampYears);
         yearTo.on("input change", clampYears);
 
-        /* ────────────────────────── 5.  colour-bar legend (static scaffolding) */
-        const legendWidth = 18,
-          legendHeight = 200,
-          legendX = width - legendWidth - 40,
-          legendY = 20;
-
-        // defs + gradient
-        const defs = svg.append("defs");
-        const grad = defs
-          .append("linearGradient")
-          .attr("id", "legendGrad")
-          .attr("x1", 0)
-          .attr("y1", 1) // vertical
-          .attr("x2", 0)
-          .attr("y2", 0);
-
-        // 10 evenly spaced stops – colours are set inside update()
-        grad
-          .selectAll("stop")
-          .data(d3.range(0, 1.001, 0.1))
-          .enter()
-          .append("stop")
-          .attr("offset", (d) => d)
-          .attr("stop-color", "#eee");
-
-        // legend group
-        const legendG = svg
-          .append("g")
-          .attr("transform", `translate(${legendX},${legendY})`);
-
-        // colour bar rectangle
-        legendG
-          .append("rect")
-          .attr("width", legendWidth)
-          .attr("height", legendHeight)
-          .attr("fill", "url(#legendGrad)")
-          .attr("stroke", "#666")
-          .attr("stroke-width", 0.5);
-
-        // axis (scale domain set inside update())
-        const legendScale = d3.scaleLinear().range([legendHeight, 0]);
-
-        const legendAxis = legendG
-          .append("g")
-          .attr("class", "legendAxis")
-          .attr("transform", `translate(${legendWidth},0)`);
-
-        /* ────────────────────────── 6.  helpers */
         function clampYears() {
           let f = +yearFrom.property("value");
           let t = +yearTo.property("value");
@@ -248,20 +254,95 @@
           update();
         }
 
-        /* ────────────────────────── 7.  map + legend repaint */
+        /* ───────────────── 6.  tag renderer */
+        function renderTags() {
+          const tags = tagBar
+            .selectAll("span.tag")
+            .data(Array.from(selected), (d) => d);
+
+          tags.exit().remove();
+
+          const enter = tags
+            .enter()
+            .append("span")
+            .attr("class", "tag")
+            .style("background", "#e0e0e0")
+            .style("padding", ".5rem .8rem")
+            .style("border-radius", "9999px")
+            .style("cursor", "pointer")
+            .style("user-select", "none")
+            .style("font-size", ".8rem")
+            .text((d) => d[0] + d.slice(1).toLowerCase() + " ×")
+            .on("click", (e, d) => {
+              selected.delete(d);
+              renderTags();
+              update();
+            });
+
+          tags.merge(enter);
+        }
+
+        /* ───────────────── 7.  legend scaffolding */
+        const legendWidth = 18,
+          legendHeight = 200,
+          legendX = width - legendWidth - 40,
+          legendY = 20;
+
+        const defs = svg.append("defs");
+        const grad = defs
+          .append("linearGradient")
+          .attr("id", "legendGrad")
+          .attr("x1", 0)
+          .attr("y1", 1)
+          .attr("x2", 0)
+          .attr("y2", 0);
+
+        grad
+          .selectAll("stop")
+          .data(d3.range(0, 1.001, 0.1))
+          .enter()
+          .append("stop")
+          .attr("offset", (d) => d)
+          .attr("stop-color", "#eee");
+
+        const legendG = svg
+          .append("g")
+          .attr("transform", `translate(${legendX},${legendY})`);
+
+        legendG
+          .append("rect")
+          .attr("width", legendWidth)
+          .attr("height", legendHeight)
+          .attr("fill", "url(#legendGrad)")
+          .attr("stroke", "#666")
+          .attr("stroke-width", 0.5);
+
+        const legendScale = d3.scaleLinear().range([legendHeight, 0]);
+        const legendAxis = legendG
+          .append("g")
+          .attr("class", "legendAxis")
+          .attr("transform", `translate(${legendWidth},0)`);
+
+        /* ───────────────── 8.  map + legend repaint */
         function update() {
-          currentName = nameInput.property("value").trim().toUpperCase();
+          const namesToPlot = selected.size
+            ? Array.from(selected)
+            : latestType
+            ? [latestType]
+            : [];
+
           const f = +yearFrom.property("value");
           const t = +yearTo.property("value");
 
           totals = new Map();
-          births.forEach((nm, dpt) => {
-            const yrs = nm.get(currentName);
-            if (yrs) {
+          namesToPlot.forEach((n) => {
+            births.forEach((nameMap, dpt) => {
+              const yrs = nameMap.get(n);
+              if (!yrs) return;
               let s = 0;
               for (let y = f; y <= t; y++) s += yrs.get(y) || 0;
-              if (s) totals.set(dpt, s);
-            }
+              if (s) totals.set(dpt, (totals.get(dpt) || 0) + s);
+            });
           });
 
           const max = d3.max(totals.values()) || 1;
@@ -270,15 +351,12 @@
             .domain([0, max])
             .interpolator(d3.interpolateBlues);
 
-          // ─ map fill
           depts
             .attr("fill", (d) => colour(totals.get(d.properties.code) || 0))
             .attr("data-count", (d) => totals.get(d.properties.code) || 0);
 
-          // ─ legend gradient colours
           grad.selectAll("stop").attr("stop-color", (d) => colour(d * max));
 
-          // ─ legend axis
           legendScale.domain([0, max]);
           legendAxis.call(
             d3
