@@ -181,6 +181,11 @@
   </div>
 
   <script>
+    // ✅ 全局变量
+    let seriesMap = new Map();
+    let selected = [];
+    let render = () => {};
+
     (async function () {
       const margin = { top: 30, right: 30, bottom: 50, left: 60 },
             width = 1000 - margin.left - margin.right,
@@ -216,7 +221,7 @@
       const rawText = await d3.text("data/dpt2020.csv");
       const parse = d3.dsvFormat(";").parse;
 
-      let data = parse(rawText, d => ({
+      const data = parse(rawText, d => ({
         name: d.preusuel,
         year: +d.annais,
         births: +d.nombre
@@ -232,14 +237,12 @@
         d => d.year
       );
 
-      const seriesMap = new Map();
       grouped.forEach(([name, yearMap]) => {
         const values = Array.from(yearMap, ([year, b]) => ({ year: +year, births: b }))
           .sort((a, b) => a.year - b.year);
         seriesMap.set(name.toUpperCase(), { name, values });
       });
 
-      let selected = [];
 
       function renderLegend() {
         const legend = d3.select("#legend");
@@ -254,7 +257,7 @@
         });
       }
 
-      function render() {
+      render = function () {
         svg.selectAll(".dot").remove();
 
         selected = selected.filter(n => seriesMap.has(n));
@@ -408,6 +411,16 @@
       selected = ["EMMA", "LÉO"];
       render();
     })();
+
+    // ✅ 监听外部发送的名字，加入选中并绘图
+    window.addEventListener("message", (event) => {
+      if (!event.data || typeof event.data !== "string") return;
+      const incomingName = event.data.trim().toUpperCase();
+      if (seriesMap.has(incomingName) && !selected.includes(incomingName)) {
+        selected.push(incomingName);
+        render();
+      }
+    });
   </script>
 </body>
 </html>

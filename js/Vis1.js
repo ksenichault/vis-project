@@ -9,6 +9,15 @@ let globalRawData = []; // Raw data for ranking charts
 let globalStats = [];   // Processed data for matrix charts
 let currentYear = 2020;
 
+// 获取 iframe 对象（用于发送名字到 Vis1_1.html）
+const iframe = document.querySelector("iframe");
+
+// 发送消息到 iframe 的函数
+function sendNameToDetailView(name) {
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.postMessage(name, "*");
+  }
+}
 
 d3.dsv(";", file, d => ({
   sex: +d.sexe,
@@ -358,6 +367,9 @@ function renderRankingChart(containerId, data, color, title) {
         .on("mouseout", function() {
           d3.select(this).attr("opacity", 0.8);
           d3.select(".ranking-tooltip").remove();
+        })
+        .on("click", function(event, d) {
+          sendNameToDetailView(d.name.toUpperCase());
         });
     });
   
