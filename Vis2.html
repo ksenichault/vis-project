@@ -2,286 +2,265 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>French baby-name popularity map (D3)</title>
+    <title>French baby‑name popularity map — fast edition</title>
+
     <style>
+      :root {
+        --bg: #fafafa;
+        --card: #ffffff;
+        --border: #e0e0e0;
+        --accent: #1976d2;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
       body {
-        font-family: sans-serif;
+        font-family: system-ui, sans-serif;
         margin: 0;
         padding: 1rem;
-        background: #fafafa;
+        background: var(--bg);
       }
       #controls {
         display: flex;
+        flex-wrap: wrap;
         gap: 1rem;
         align-items: center;
         margin-bottom: 1rem;
-        flex-wrap: wrap;
       }
       label {
         font-weight: 600;
       }
-      input[type="text"] {
-        padding: 0.3rem 0.5rem;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        min-width: 110px;
-      }
+      input[type="text"],
       input[type="number"] {
-        width: 5rem;
+        padding: 0.35rem 0.55rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
       }
       svg {
-        background: white;
-        border: 1px solid #ddd;
+        background: var(--card);
+        border: 1px solid var(--border);
         border-radius: 6px;
       }
       .dept {
-        stroke: white;
+        stroke: #fff;
         stroke-width: 0.7;
       }
       .tooltip {
+        position: fixed;
         pointer-events: none;
-        position: absolute;
         opacity: 0;
+        z-index: 9999;
         background: #333;
         color: #fff;
         padding: 0.4rem 0.6rem;
         border-radius: 4px;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         white-space: nowrap;
+        transition: opacity 0.15s ease-out;
+      }
+      .tag {
+        background: #e0e0e0;
+        padding: 0.35rem 0.7rem;
+        border-radius: 9999px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 0.8rem;
       }
     </style>
   </head>
   <body>
-    <div>
-      <div id="maps" style="display: flex; gap: 2rem">
+    <div id="app">
+      <div id="maps" style="display: flex; gap: 2rem; flex-wrap: wrap">
         <div>
           <div id="controls">
-            <label>
-              Name :
+            <label
+              >Name
               <input
                 id="nameInput"
                 type="text"
-                value="Anna"
                 placeholder="first name"
+                autocomplete="off"
               />
               <datalist id="nameList"></datalist>
             </label>
+            <div
+              id="tagBar"
+              style="
+                display: flex;
+                gap: 0.4rem;
+                flex-wrap: wrap;
+                max-width: 65%;
+              "
+            ></div>
           </div>
           <svg id="map" width="800" height="700"></svg>
         </div>
         <div style="margin-top: 0.6rem">
           <div id="popLegend" style="margin-bottom: 1rem"></div>
-
           <svg id="popMap" width="800" height="700"></svg>
         </div>
-        <!-- NEW -->
       </div>
-      <div>
-        <label>
-          Year from
-          <input id="yearFrom" type="number" value="1900" />
-        </label>
-        <label>
-          to
-          <input id="yearTo" type="number" value="2020" />
-        </label>
+      <div style="margin-top: 1rem">
+        <label
+          >Year from
+          <input id="yearFrom" type="number" min="1900" max="2020" value="1900"
+        /></label>
+        <label
+          >to
+          <input id="yearTo" type="number" min="1900" max="2020" value="2020"
+        /></label>
       </div>
     </div>
-    <!-- NEW -->
 
     <div class="tooltip" id="tooltip"></div>
 
-    <script src="libs/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <script>
-      const csvFile = "./data/dpt2020.csv";
-      const geoFile = "./data/departements-version-simplifiee.geojson";
-      const width = 800,
-        height = 600;
-      const svg = d3.select("#map").attr("viewBox", [0, 0, width, height]);
+      (async function () {
+        const CSV = "./data/dpt2020.csv",
+          GEO = "./data/departements-version-simplifiee.geojson";
+        const YEARS = { min: 1900, max: 2020 };
+        const W = 800,
+          H = 600;
+        const mapDpt = {
+          //   old  →  new
+          201: "2A",
+          202: "2B",
+          "20A": "2A",
+          "20B": "2B",
+        };
+        function norm(code) {
+          return mapDpt[code.trim()] || code.trim(); // falls through if already OK
+        }
+        const $nameInput = d3.select("#nameInput");
+        const $nameList = d3.select("#nameList");
+        const $yearFrom = d3.select("#yearFrom");
+        const $yearTo = d3.select("#yearTo");
+        const $tagBar = d3.select("#tagBar");
+        const $tooltip = d3.select("#tooltip");
+        const $mapSvg = d3.select("#map").attr("viewBox", [0, 0, W, H]);
+        const $popSvg = d3.select("#popMap").attr("viewBox", [0, 0, W, H]);
 
-      const tooltip = d3.select("#tooltip");
-
-      const projection = d3
-        .geoConicConformal()
-        .center([2.454071, 46.279229])
-        .scale(2600)
-        .translate([width / 2, height / 2]);
-
-      const path = d3.geoPath(projection);
-
-      Promise.all([
-        d3.json(geoFile),
-        d3.dsv(";", csvFile, (row) => ({
-          dpt: row.dpt,
-          name: row.preusuel.toUpperCase(),
-          year: +row.annais,
-          count: +row.nombre,
-        })),
-      ]).then(initialize);
-
-      function initialize([france, birthsRaw]) {
-        projection.fitSize([width, height], france);
-
-        const mainSvg = d3.select("#map");
-        const popSvg = d3.select("#popMap");
-
-        const mainDepts = mainSvg
+        const geo = await d3.json(GEO);
+        const proj = d3
+          .geoConicConformal()
+          .center([2.454071, 46.279229])
+          .scale(2600)
+          .translate([W / 2, H / 2]);
+        proj.fitSize([W, H], geo);
+        const path = d3.geoPath(proj);
+        const mainDepts = $mapSvg
           .append("g")
           .selectAll("path")
-          .data(france.features)
+          .data(geo.features)
           .enter()
           .append("path")
-          .attr("d", path)
           .attr("class", "dept")
+          .attr("d", path)
           .attr("fill", "#eee");
-
-        const popDepts = popSvg
+        const popDepts = $popSvg
           .append("g")
           .selectAll("path")
-          .data(france.features)
+          .data(geo.features)
           .enter()
           .append("path")
-          .attr("d", path)
           .attr("class", "dept")
+          .attr("d", path)
           .attr("fill", "#fafafa")
           .attr("stroke", "#fff")
           .attr("stroke-width", 0.7);
 
-        const selected = new Set();
-        let totalsMain = new Map(); // main map totals
-        let latestType = ""; // live text in box
-        const popTip = tooltip;
-        let mainDetail = new Map();
-        let mainTop = new Map();
-
-        const births = d3.rollup(
-          birthsRaw,
-          (v) =>
-            d3.rollup(
-              v,
-              (vv) =>
-                d3.rollup(
-                  vv,
-                  (vvv) => d3.sum(vvv, (r) => r.count),
-                  (r) => r.year
-                ),
-              (r) => r.name
-            ),
-          (r) => r.dpt
-        );
-
-        /* helper for any name + year span */
-        function sumFor(name, dpt, yF, yT) {
-          const yrMap = births.get(dpt)?.get(name);
-          if (!yrMap) return 0;
-          let s = 0;
-          for (let y = yF; y <= yT; y++) s += yrMap.get(y) || 0;
-          return s;
+        const raw = await d3.dsv(";", CSV, (d) => ({
+          dpt: norm(d.dpt), // ← change is here
+          name: d.preusuel.toUpperCase(),
+          y: +d.annais,
+          n: +d.nombre,
+        }));
+        const ALL_NAMES = Array.from(new Set(raw.map((r) => r.name))).sort();
+        const cube = new Map();
+        for (const { dpt, name, y, n } of raw) {
+          let names = cube.get(dpt);
+          if (!names) cube.set(dpt, (names = new Map()));
+          let ps = names.get(name);
+          if (!ps)
+            names.set(name, (ps = new Uint32Array(YEARS.max - YEARS.min + 1)));
+          ps[y - YEARS.min] += n;
         }
+        cube.forEach((names) =>
+          names.forEach((ps) => {
+            for (let i = 1; i < ps.length; i++) ps[i] += ps[i - 1];
+          })
+        );
+        const rangeSum = (ps, y0, y1) =>
+          ps
+            ? ps[y1 - YEARS.min] - (y0 > YEARS.min ? ps[y0 - YEARS.min - 1] : 0)
+            : 0;
 
-        const nameInput = d3.select("#nameInput");
-        const datalist = d3.select("#nameList");
-        const yearFrom = d3.select("#yearFrom");
-        const yearTo = d3.select("#yearTo");
-        const tagBar = d3
-          .select("#controls")
-          .append("div")
-          .style("display", "flex")
-          .style("gap", ".4rem")
-          .style("flex-wrap", "wrap")
-          .style("width", "65%");
+        const selected = new Set();
+        let latestType = "";
+        const debounce = (fn, ms = 200) => {
+          let id;
+          return (...a) => {
+            clearTimeout(id);
+            id = setTimeout(() => fn(...a), ms);
+          };
+        };
 
-        const allNames = Array.from(
-          birthsRaw.reduce((s, r) => s.add(r.name), new Set())
-        ).sort();
-
-        nameInput.on("input", () => {
-          latestType = nameInput.property("value").trim().toUpperCase();
-
-          const q = latestType;
-          const sugg = q
-            ? allNames.filter((n) => n.startsWith(q)).slice(0, 10)
-            : allNames.slice(0, 10);
-
-          datalist.selectAll("option").remove();
-          datalist
-            .selectAll("option")
-            .data(sugg)
-            .enter()
-            .append("option")
-            .attr("value", (d) => d[0] + d.slice(1).toLowerCase());
-
-          nameInput.attr("list", "nameList"); // keep attribute
-          refreshAll();
-        });
-
-        nameInput.on("keydown", (e) => {
+        $nameInput.on(
+          "input",
+          debounce(() => {
+            latestType = $nameInput.property("value").trim().toUpperCase();
+            const q = latestType;
+            const sugg = (
+              q ? ALL_NAMES.filter((n) => n.startsWith(q)) : ALL_NAMES
+            ).slice(0, 10);
+            $nameList
+              .selectAll("option")
+              .data(sugg)
+              .join("option")
+              .attr("value", (d) => d[0] + d.slice(1).toLowerCase());
+            $nameInput.attr("list", "nameList");
+            refresh();
+          })
+        );
+        $nameInput.on("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
             addTag();
           }
         });
-        nameInput.on("change", addTag);
+        $nameInput.on("change", addTag);
 
         function addTag() {
-          const cand = nameInput.property("value").trim().toUpperCase();
-          if (
-            cand &&
-            birthsRaw.find((r) => r.name === cand) &&
-            !selected.has(cand)
-          ) {
+          const cand = $nameInput.property("value").trim().toUpperCase();
+          if (cand && ALL_NAMES.includes(cand) && !selected.has(cand)) {
             selected.add(cand);
-            renderTags();
-            nameInput.property("value", "");
             latestType = "";
-            refreshAll();
+            $nameInput.property("value", "");
+            renderTags();
+            refresh();
           }
         }
-
-        // --- years
-        // yearFrom.on("input change", clampYears);
-        // yearTo.on("input change", clampYears);
-
-        // function clampYears() {
-        //   let f = +yearFrom.property("value");
-        //   let t = +yearTo.property("value");
-        //   f = Math.max(1900, Math.min(2020, f));
-        //   t = Math.max(1900, Math.min(2020, t));
-        //   if (t < f) [f, t] = [t, f];
-        //   yearFrom.property("value", f);
-        //   yearTo.property("value", t);
-        //   refreshAll();
-        // }
-
         function renderTags() {
-          const pills = tagBar
+          $tagBar
             .selectAll("span.tag")
-            .data(Array.from(selected), (d) => d);
-
-          pills.exit().remove();
-
-          const ent = pills
-            .enter()
-            .append("span")
-            .attr("class", "tag")
-            .style("background", "#e0e0e0")
-            .style("padding", ".4rem .7rem")
-            .style("border-radius", "9999px")
-            .style("cursor", "pointer")
-            .style("user-select", "none")
-            .style("font-size", ".8rem")
-            .text((d) => d[0] + d.slice(1).toLowerCase() + " ×")
-            .on("click", (e, d) => {
-              selected.delete(d);
-              renderTags();
-              refreshAll();
-            });
-
-          pills.merge(ent);
+            .data(Array.from(selected), (d) => d)
+            .join((enter) =>
+              enter
+                .append("span")
+                .attr("class", "tag")
+                .text((d) => d[0] + d.slice(1).toLowerCase() + " ×")
+                .on("click", (_, d) => {
+                  selected.delete(d);
+                  renderTags();
+                  refresh();
+                })
+            );
         }
 
-        // blue gradient legend on main map
-        const defs = mainSvg.append("defs");
+        const defs = $mapSvg.append("defs");
         const grad = defs
           .append("linearGradient")
           .attr("id", "legendGrad")
@@ -296,14 +275,11 @@
           .append("stop")
           .attr("offset", (d) => d)
           .attr("stop-color", "#eee");
-
         const legendScale = d3.scaleLinear().range([200, 0]);
-        const legendAxis = mainSvg
+        const legendAxis = $mapSvg
           .append("g")
-          .attr("class", "legendAxis")
-          .attr("transform", "translate(725,20)"); // 800-18-4
-
-        mainSvg
+          .attr("transform", "translate(725,20)");
+        $mapSvg
           .append("rect")
           .attr("x", 700)
           .attr("y", 20)
@@ -313,109 +289,88 @@
           .attr("stroke", "#666")
           .attr("stroke-width", 0.5);
 
+        // simple tooltip helpers
+        function showTip(html, x, y) {
+          $tooltip
+            .style("opacity", 1)
+            .style("left", x + 15 + "px")
+            .style("top", y + 15 + "px")
+            .html(html);
+        }
+        function hideTip() {
+          $tooltip.style("opacity", 0);
+        }
+
         function updateMain() {
-          /* ---------- 1 · names we’re analysing ---------------------------- */
-          const selNames = selected.size
-            ? Array.from(selected) // pills
+          const yF = +$yearFrom.property("value"),
+            yT = +$yearTo.property("value");
+          const sel = selected.size
+            ? Array.from(selected)
             : latestType
-            ? [latestType.toUpperCase()]
+            ? [latestType]
             : [];
-
-          /* ---------- 2 · year window -------------------------------------- */
-          const yF = +yearFrom.property("value");
-          const yT = +yearTo.property("value");
-
-          /* ---------- 3 · département totals (denominator) ---------------- */
-          const deptTotal = new Map(); // dpt → births in range
-          births.forEach((nameMap, dpt) => {
-            let sum = 0;
-            nameMap.forEach((yr) => {
-              for (let y = yF; y <= yT; y++) sum += yr.get(y) || 0;
-            });
-            deptTotal.set(dpt, sum || 1); // avoid divide-by-0
-          });
-
-          /* ---------- 4 · percentage per selected name -------------------- */
-          mainDetail = new Map(); // dpt → [[name,pct,rank], …]
-          const fillPct = new Map(); // dpt → Σ pct (colour value)
-
-          births.forEach((nameMap, dpt) => {
-            const denom = deptTotal.get(dpt);
-
-            /* full ranking so we know each name’s rank */
-            const rows = [];
-            nameMap.forEach((yrMap, n) => {
-              let c = 0;
-              for (let y = yF; y <= yT; y++) c += yrMap.get(y) || 0;
-              if (c) rows.push([n, c / denom]);
-            });
-            rows.sort((a, b) => d3.descending(a[1], b[1]));
-
-            /* save top-5 (optional; you already use it elsewhere) */
-            mainTop.set(dpt, rows.slice(0, 5));
-
-            /* now pick only the selected names for tooltip */
-            const det = [];
-            let acc = 0;
-            selNames.forEach((n) => {
+          const fillPct = new Map(),
+            details = new Map();
+          cube.forEach((names, dpt) => {
+            let denom = 0;
+            names.forEach((ps) => (denom += rangeSum(ps, yF, yT)));
+            if (!denom) denom = 1;
+            const rows = Array.from(names, ([n, ps]) => [
+              n,
+              rangeSum(ps, yF, yT) / denom,
+            ])
+              .filter((r) => r[1] > 0)
+              .sort((a, b) => d3.descending(a[1], b[1]));
+            let acc = 0,
+              det = [];
+            for (const n of sel) {
               const i = rows.findIndex((r) => r[0] === n);
-              if (i === -1) return;
-              const pct = rows[i][1];
-              acc += pct;
-              det.push([n, pct, i + 1]); // rank = index+1
-            });
-            mainDetail.set(dpt, det);
-            fillPct.set(dpt, acc); // colour = combined pct
+              if (i !== -1) {
+                const pct = rows[i][1];
+                acc += pct;
+                det.push([n, pct, i + 1]);
+              }
+            }
+            fillPct.set(dpt, acc);
+            details.set(dpt, det);
           });
-
-          /* ---------- 5 · colour scale (0 % → max %) ---------------------- */
           const maxPct = d3.max(fillPct.values()) || 0.01;
           const col = d3.scaleSequential([0, maxPct], d3.interpolateBlues);
-
           grad.selectAll("stop").attr("stop-color", (d) => col(d * maxPct));
           legendScale.domain([0, maxPct]);
           legendAxis.call(
             d3.axisRight(legendScale).ticks(6).tickFormat(d3.format(".0%"))
           );
 
-          /* ---------- 6 · paint map + tooltip ----------------------------- */
           mainDepts
             .attr("fill", (d) => col(fillPct.get(d.properties.code) || 0))
             .on("mousemove", (e, d) => {
-              const rows = mainDetail.get(d.properties.code) || [];
-              const html = rows
-                .map(
-                  ([n, p, r]) =>
-                    `#${r} ${n[0]}${n.slice(1).toLowerCase()}: <strong>${(
-                      p * 100
-                    ).toFixed(1)} %</strong>`
-                )
-                .join("<br>");
-              tooltip
-                .style("opacity", 1)
-                .style("left", e.pageX + 15 + "px")
-                .style("top", e.pageY + 15 + "px")
-                .html(
-                  `<strong>${d.properties.nom} (${d.properties.code})</strong><br>${html}`
-                );
+              const rows = details.get(d.properties.code) || [];
+              const html =
+                `<strong>${d.properties.nom} (${d.properties.code})</strong><br>` +
+                rows
+                  .map(
+                    ([n, p, r]) =>
+                      `#${r} ${n[0]}${n.slice(1).toLowerCase()}: <strong>${(
+                        p * 100
+                      ).toFixed(1)} %</strong>`
+                  )
+                  .join("<br>");
+              showTip(html, e.pageX, e.pageY);
             })
-            .on("mouseout", () => tooltip.style("opacity", 0));
+            .on("mouseout", hideTip);
         }
 
         function updatePop() {
-          const f = +yearFrom.property("value");
-          const t = +yearTo.property("value");
-
-          // gather stats per dep
-          const depStats = new Map();
-          const winnerName = new Map();
-
-          births.forEach((nameMap, dpt) => {
-            let tot = 0;
-            const arr = [];
-            nameMap.forEach((yrMap, n) => {
-              let s = 0;
-              for (let y = f; y <= t; y++) s += yrMap.get(y) || 0;
+          const yF = +$yearFrom.property("value"),
+            yT = +$yearTo.property("value");
+          const top = new Map(),
+            winner = new Map();
+          cube.forEach((names, dpt) => {
+            let tot = 0,
+              arr = [];
+            names.forEach((ps, n) => {
+              const s = rangeSum(ps, yF, yT);
               if (s) {
                 tot += s;
                 arr.push([n, s]);
@@ -424,49 +379,45 @@
             if (!tot) return;
             arr.forEach((d) => (d[1] = d[1] / tot));
             arr.sort((a, b) => d3.descending(a[1], b[1]));
-            depStats.set(dpt, arr.slice(0, 5));
-            winnerName.set(dpt, arr[0][0]);
+            top.set(dpt, arr.slice(0, 5));
+            winner.set(dpt, arr[0][0]);
           });
-
-          const winners = Array.from(new Set(winnerName.values()));
+          const winners = Array.from(new Set(winner.values()));
           const palette =
             winners.length <= 10
               ? d3.schemeTableau10
               : d3
                   .range(winners.length)
                   .map((i) => d3.interpolateRainbow(i / winners.length));
-          const catCol = d3.scaleOrdinal(winners, palette);
+          // const catCol = d3.scaleOrdinal(winners, palette);
+          const catCol = d3.scaleOrdinal(winners, palette).unknown("#d0d0d0"); // light grey
 
-          popDepts.attr("fill", (d) =>
-            catCol(winnerName.get(d.properties.code))
-          );
-
-          // tooltip
           popDepts
+            .attr("fill", (d) => catCol(winner.get(d.properties.code)))
             .on("mousemove", (e, d) => {
-              const top = depStats.get(d.properties.code);
-              if (!top) return;
-              const html = top
-                .map(
-                  ([n, p]) =>
-                    `${n[0]}${n.slice(1).toLowerCase()}: <strong>${(
-                      p * 100
-                    ).toFixed(1)}%</strong>`
-                )
-                .join("<br>");
-              popTip
-                .style("opacity", 1)
-                .style("left", e.pageX + 15 + "px")
-                .style("top", e.pageY + 15 + "px")
-                .html(
-                  `<strong>${d.properties.nom} (${d.properties.code})</strong><br>${html}`
-                );
-            })
-            .on("mouseout", () => popTip.style("opacity", 0));
+              const arr = top.get(d.properties.code);
+              // console.log(d.properties.code, winner.get(d.properties.code));
 
-          // legend
-          const div = d3.select("#popLegend").html("");
-          const row = div
+              if (!arr) return;
+
+              const html = arr
+                ? `<strong>${d.properties.nom} (${d.properties.code})</strong><br>` +
+                  arr
+                    .map(
+                      ([n, p]) =>
+                        `${n[0]}${n.slice(1).toLowerCase()}: <strong>${(
+                          p * 100
+                        ).toFixed(1)}%</strong>`
+                    )
+                    .join("<br>")
+                : `<strong>${d.properties.nom} (${d.properties.code})</strong><br><em>No data</em>`;
+              showTip(html, e.pageX, e.pageY);
+            })
+            .on("mouseout", hideTip);
+
+          const $leg = d3.select("#popLegend");
+          $leg.selectAll("*").remove();
+          const row = $leg
             .append("div")
             .style("display", "flex")
             .style("flex-wrap", "wrap")
@@ -488,13 +439,28 @@
           });
         }
 
-        function refreshAll() {
+        function refresh() {
           updateMain();
           updatePop();
         }
-
-        clampYears();
-      }
+        d3.selectAll("#yearFrom,#yearTo").on("input", () => {
+          let f = +$yearFrom.property("value"),
+            t = +$yearTo.property("value");
+          f = Math.max(YEARS.min, Math.min(YEARS.max, f));
+          t = Math.max(YEARS.min, Math.min(YEARS.max, t));
+          if (t < f) [f, t] = [t, f];
+          $yearFrom.property("value", f);
+          $yearTo.property("value", t);
+          refresh();
+        });
+        $nameList
+          .selectAll("option")
+          .data(ALL_NAMES.slice(0, 10))
+          .enter()
+          .append("option")
+          .attr("value", (d) => d[0] + d.slice(1).toLowerCase());
+        refresh();
+      })();
     </script>
   </body>
 </html>
