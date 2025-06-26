@@ -6,7 +6,7 @@
 
     <style>
       :root {
-        --bg: #fafafa;
+        --bg: #f8fafc;
         --card: #ffffff;
         --border: #e0e0e0;
         --accent: #1976d2;
@@ -34,7 +34,7 @@
       }
       input[type="text"],
       input[type="number"] {
-        padding: 0.35rem 0.55rem;
+        padding: 0.5rem 0.8rem;
         border: 1px solid var(--border);
         border-radius: 4px;
       }
@@ -72,9 +72,28 @@
   </head>
   <body>
     <div id="app">
-      <div id="maps" style="display: flex; gap: 2rem; flex-wrap: wrap">
+      <div style="margin-top: 0.5rem; margin-bottom: 0.5rem">
+        <label
+          >Year from
+          <input id="yearFrom" type="number" min="1900" max="2020" value="1900"
+        /></label>
+        <label
+          >to
+          <input id="yearTo" type="number" min="1900" max="2020" value="2020"
+        /></label>
+      </div>
+      <div
+        id="maps"
+        style="
+          display: flex;
+          gap: 2rem;
+          flex-wrap: wrap;
+          justify-content: space-between;
+        "
+      >
         <div>
-          <div id="controls">
+          <svg id="map" width="800" height="700"></svg>
+          <div style="margin-top: 1rem" id="controls">
             <label
               >Name
               <input
@@ -95,14 +114,15 @@
               "
             ></div>
           </div>
-          <svg id="map" width="800" height="700"></svg>
         </div>
-        <div style="margin-top: 0.6rem">
-          <div id="popLegend" style="margin-bottom: 1rem"></div>
+        <div>
+          <!-- <div id="popLegend" style="margin-bottom: 1rem; display: flex"></div> -->
           <svg id="popMap" width="800" height="700"></svg>
+          <div id="popLegend" style="margin-top: 1rem; display: flex"></div>
         </div>
       </div>
-      <div style="margin-top: 1rem">
+
+      <!-- <div style="margin-top: 1rem">
         <label
           >Year from
           <input id="yearFrom" type="number" min="1900" max="2020" value="1900"
@@ -111,7 +131,7 @@
           >to
           <input id="yearTo" type="number" min="1900" max="2020" value="2020"
         /></label>
-      </div>
+      </div> -->
     </div>
 
     <div class="tooltip" id="tooltip"></div>
@@ -393,15 +413,30 @@
             top.set(dpt, arr.slice(0, 5));
             winner.set(dpt, arr[0][0]);
           });
-          const winners = Array.from(new Set(winner.values()));
+          const nameTotals = new Map();
+          let nationalTotal = 0;
+
+          cube.forEach((names) => {
+            names.forEach((ps, n) => {
+              const s = rangeSum(ps, yF, yT);
+              if (s) {
+                nationalTotal += s;
+                nameTotals.set(n, (nameTotals.get(n) || 0) + s);
+              }
+            });
+          });
+          const winners = Array.from(new Set(winner.values())).sort((a, b) =>
+            d3.descending(nameTotals.get(a), nameTotals.get(b))
+          );
+
           const palette =
             winners.length <= 10
               ? d3.schemeTableau10
               : d3
                   .range(winners.length)
                   .map((i) => d3.interpolateRainbow(i / winners.length));
-          // const catCol = d3.scaleOrdinal(winners, palette);
-          const catCol = d3.scaleOrdinal(winners, palette).unknown("#d0d0d0"); // light grey
+
+          const catCol = d3.scaleOrdinal(winners, palette).unknown("#d0d0d0");
 
           popDepts
             .attr("fill", (d) => catCol(winner.get(d.properties.code)))
@@ -426,28 +461,57 @@
             })
             .on("mouseout", hideTip);
 
+          /* ---------- LEGEND ---------------------------------------- */
           const $leg = d3.select("#popLegend");
           $leg.selectAll("*").remove();
+
+          /* caption explaining the numbers */
+          $leg
+            .append("div")
+            // .style("font-size", ".75rem")
+            .style("margin-bottom", ".3rem")
+            .text(
+              "Nation-wide ranking – share of all births in the selected period:"
+            );
+
           const row = $leg
             .append("div")
             .style("display", "flex")
-            .style("flex-wrap", "wrap")
-            .style("gap", ".4rem");
-          winners.forEach((n) => {
-            const it = row
+            .style("flex-direction", "column")
+            .style("gap", ".25rem");
+
+          winners.forEach((n, i) => {
+            const pct = (100 * nameTotals.get(n)) / nationalTotal;
+
+            const item = row
               .append("div")
               .style("display", "flex")
-              .style("gap", ".3rem")
-              .style("align-items", "center");
-            it.append("span")
-              .style("width", "1rem")
-              .style("height", "1rem")
+              .style("align-items", "center")
+              .style("gap", ".4rem")
+              .style("font-size", ".8rem");
+
+            /* rank */
+            item
+              .append("span")
+              .style("width", "2rem")
+              .style("text-align", "right")
+              .style("font-weight", "600")
+              .text(`#${i + 1}`);
+
+            /* colour swatch */
+            item
+              .append("span")
+              .style("width", ".9rem")
+              .style("height", ".9rem")
               .style("background", catCol(n))
               .style("border", "1px solid #999");
-            it.append("span")
-              .style("font-size", ".8rem")
-              .text(n[0] + n.slice(1).toLowerCase());
+
+            /* name + percentage */
+            item
+              .append("span")
+              .text(`${n[0]}${n.slice(1).toLowerCase()}  ${pct.toFixed(1)} %`);
           });
+          /* ---------------------------------------------------------- */
         }
 
         function refresh() {
