@@ -3,6 +3,8 @@ Group J - Kimia Senichault, Jingru Sang, Nazrin Nasirova, Yuanyuan Zhang
 
 This project contains three visualizations in `main.html`.
 
+The final deployed version is available here: https://ksenichault.github.io/vis-project/
+
 ### Steps to Run:
 
 1. Open your terminal and navigate to the project directory.
