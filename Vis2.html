@@ -52,36 +52,40 @@
     </style>
   </head>
   <body>
-    <div id="controls">
-      <label>
-        Name :
-        <input
-          id="nameInput"
-          type="text"
-          value="Anna"
-          placeholder="first name"
-        />
-        <datalist id="nameList"></datalist>
-      </label>
+    <div>
+      <div id="maps" style="display: flex; gap: 2rem">
+        <div>
+          <div id="controls">
+            <label>
+              Name :
+              <input
+                id="nameInput"
+                type="text"
+                value="Anna"
+                placeholder="first name"
+              />
+              <datalist id="nameList"></datalist>
+            </label>
+          </div>
+          <svg id="map" width="800" height="700"></svg>
+        </div>
+        <div style="margin-top: 0.6rem">
+          <div id="popLegend" style="margin-bottom: 1rem"></div>
 
-      <label>
-        Year from
-        <input id="yearFrom" type="number" value="1900" />
-      </label>
-      <label>
-        to
-        <input id="yearTo" type="number" value="2020" />
-      </label>
-    </div>
-
-    <div id="maps" style="display: flex; gap: 2rem">
-      <svg id="map" width="800" height="600"></svg>
-      <div>
-        <div id="popLegend" style="margin-top: 0.5rem"></div>
-
-        <svg id="popMap" width="800" height="600"></svg>
+          <svg id="popMap" width="800" height="700"></svg>
+        </div>
+        <!-- NEW -->
       </div>
-      <!-- NEW -->
+      <div>
+        <label>
+          Year from
+          <input id="yearFrom" type="number" value="1900" />
+        </label>
+        <label>
+          to
+          <input id="yearTo" type="number" value="2020" />
+        </label>
+      </div>
     </div>
     <!-- NEW -->
 
@@ -183,7 +187,9 @@
           .select("#controls")
           .append("div")
           .style("display", "flex")
-          .style("gap", ".4rem");
+          .style("gap", ".4rem")
+          .style("flex-wrap", "wrap")
+          .style("width", "65%");
 
         const allNames = Array.from(
           birthsRaw.reduce((s, r) => s.add(r.name), new Set())
