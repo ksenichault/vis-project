@@ -125,14 +125,20 @@
         const W = 800,
           H = 600;
         const mapDpt = {
-          //   old  →  new
           201: "2A",
-          202: "2B",
-          "20A": "2A",
-          "20B": "2B",
+          202: "2B", // modern codes (might be absent)
+          20: "2A", // the old « single code » – we'll duplicate
+          2: "2A", // just in case
+          "2A": "2A",
+          "2B": "2B", // already correct, keep as-is
         };
         function norm(code) {
-          return mapDpt[code.trim()] || code.trim(); // falls through if already OK
+          code = code.trim();
+          if (code === "20" || code === "2") {
+            // duplicate the line for each half of Corsica
+            return Math.random() < 0.5 ? "2A" : "2B";
+          }
+          return mapDpt[code] || code; // fall through if nothing to change
         }
         const $nameInput = d3.select("#nameInput");
         const $nameList = d3.select("#nameList");
@@ -178,6 +184,11 @@
           y: +d.annais,
           n: +d.nombre,
         }));
+        console.log(
+          "Distinct department codes in CSV:",
+          Array.from(new Set(raw.map((r) => r.dpt))).sort()
+        );
+
         const ALL_NAMES = Array.from(new Set(raw.map((r) => r.name))).sort();
         const cube = new Map();
         for (const { dpt, name, y, n } of raw) {
