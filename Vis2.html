@@ -61,9 +61,10 @@
         transition: opacity 0.15s ease-out;
       }
       .tag {
-        background: #e0e0e0;
-        padding: 0.35rem 0.7rem;
-        border-radius: 9999px;
+        background: #6f9dc9;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        color: white;
         cursor: pointer;
         user-select: none;
         font-size: 0.8rem;
@@ -198,16 +199,18 @@
           .attr("stroke", "#fff")
           .attr("stroke-width", 0.7);
 
-        const raw = await d3.dsv(";", CSV, (d) => ({
-          dpt: norm(d.dpt), // ← change is here
-          name: d.preusuel.toUpperCase(),
-          y: +d.annais,
-          n: +d.nombre,
-        }));
-        console.log(
-          "Distinct department codes in CSV:",
-          Array.from(new Set(raw.map((r) => r.dpt))).sort()
-        );
+        const SKIP = new Set(["_PRENOMS_RARES"]);
+
+        const raw = await d3.dsv(";", CSV, (d) => {
+          const name = d.preusuel.trim();
+          if (SKIP.has(name.toUpperCase())) return; // ← filter out
+          return {
+            dpt: norm(d.dpt),
+            name: name.toUpperCase(),
+            y: +d.annais,
+            n: +d.nombre,
+          };
+        });
 
         const ALL_NAMES = Array.from(new Set(raw.map((r) => r.name))).sort();
         const cube = new Map();
