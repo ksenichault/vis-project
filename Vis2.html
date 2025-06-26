@@ -308,67 +308,83 @@
           .attr("stroke-width", 0.5);
 
         function updateMain() {
-          const list = selected.size
-            ? Array.from(selected)
+          /* ---------- 1 · names we’re analysing ---------------------------- */
+          const selNames = selected.size
+            ? Array.from(selected) // pills
             : latestType
-            ? [latestType]
+            ? [latestType.toUpperCase()]
             : [];
 
-          const f = +yearFrom.property("value");
-          const t = +yearTo.property("value");
+          /* ---------- 2 · year window -------------------------------------- */
+          const yF = +yearFrom.property("value");
+          const yT = +yearTo.property("value");
 
-          totalsMain = new Map();
-          list.forEach((n) => {
-            births.forEach((nameMap, dpt) => {
-              const yrMap = nameMap.get(n);
-              if (!yrMap) return;
-              let s = 0;
-              for (let y = f; y <= t; y++) s += yrMap.get(y) || 0;
-              if (s) totalsMain.set(dpt, (totalsMain.get(dpt) || 0) + s);
-            });
-          });
-
-          mainDetail = new Map();
-          list.forEach((n) => {
-            births.forEach((nameMap, dpt) => {
-              const yrMap = nameMap.get(n);
-              if (!yrMap) return;
-              let s = 0;
-              for (let y = f; y <= t; y++) s += yrMap.get(y) || 0;
-              if (!s) return;
-
-              if (!mainDetail.has(dpt)) mainDetail.set(dpt, []);
-              mainDetail.get(dpt).push([n, s]);
-            });
-          });
-          mainTop = new Map();
+          /* ---------- 3 · département totals (denominator) ---------------- */
+          const deptTotal = new Map(); // dpt → births in range
           births.forEach((nameMap, dpt) => {
+            let sum = 0;
+            nameMap.forEach((yr) => {
+              for (let y = yF; y <= yT; y++) sum += yr.get(y) || 0;
+            });
+            deptTotal.set(dpt, sum || 1); // avoid divide-by-0
+          });
+
+          /* ---------- 4 · percentage per selected name -------------------- */
+          mainDetail = new Map(); // dpt → [[name,pct,rank], …]
+          const fillPct = new Map(); // dpt → Σ pct (colour value)
+
+          births.forEach((nameMap, dpt) => {
+            const denom = deptTotal.get(dpt);
+
+            /* full ranking so we know each name’s rank */
             const rows = [];
             nameMap.forEach((yrMap, n) => {
-              let s = 0;
-              for (let y = f; y <= t; y++) s += yrMap.get(y) || 0;
-              if (s) rows.push([n, s]);
+              let c = 0;
+              for (let y = yF; y <= yT; y++) c += yrMap.get(y) || 0;
+              if (c) rows.push([n, c / denom]);
             });
             rows.sort((a, b) => d3.descending(a[1], b[1]));
-            mainTop.set(dpt, rows.slice(0, 5));
-          });
-          const max = d3.max(totalsMain.values()) || 1;
-          const col = d3
-            .scaleSequential()
-            .domain([0, max])
-            .interpolator(d3.interpolateBlues);
 
+            /* save top-5 (optional; you already use it elsewhere) */
+            mainTop.set(dpt, rows.slice(0, 5));
+
+            /* now pick only the selected names for tooltip */
+            const det = [];
+            let acc = 0;
+            selNames.forEach((n) => {
+              const i = rows.findIndex((r) => r[0] === n);
+              if (i === -1) return;
+              const pct = rows[i][1];
+              acc += pct;
+              det.push([n, pct, i + 1]); // rank = index+1
+            });
+            mainDetail.set(dpt, det);
+            fillPct.set(dpt, acc); // colour = combined pct
+          });
+
+          /* ---------- 5 · colour scale (0 % → max %) ---------------------- */
+          const maxPct = d3.max(fillPct.values()) || 0.01;
+          const col = d3.scaleSequential([0, maxPct], d3.interpolateBlues);
+
+          grad.selectAll("stop").attr("stop-color", (d) => col(d * maxPct));
+          legendScale.domain([0, maxPct]);
+          legendAxis.call(
+            d3.axisRight(legendScale).ticks(6).tickFormat(d3.format(".0%"))
+          );
+
+          /* ---------- 6 · paint map + tooltip ----------------------------- */
           mainDepts
-            .attr("fill", (d) => col(totalsMain.get(d.properties.code) || 0))
+            .attr("fill", (d) => col(fillPct.get(d.properties.code) || 0))
             .on("mousemove", (e, d) => {
-              const rows = mainTop.get(d.properties.code) || [];
+              const rows = mainDetail.get(d.properties.code) || [];
               const html = rows
                 .map(
-                  ([n, c]) =>
-                    `${n[0]}${n.slice(1).toLowerCase()}: <strong>${c}</strong>`
+                  ([n, p, r]) =>
+                    `#${r} ${n[0]}${n.slice(1).toLowerCase()}: <strong>${(
+                      p * 100
+                    ).toFixed(1)} %</strong>`
                 )
                 .join("<br>");
-
               tooltip
                 .style("opacity", 1)
                 .style("left", e.pageX + 15 + "px")
@@ -378,12 +394,6 @@
                 );
             })
             .on("mouseout", () => tooltip.style("opacity", 0));
-
-          grad.selectAll("stop").attr("stop-color", (d) => col(d * max));
-          legendScale.domain([0, max]);
-          legendAxis.call(
-            d3.axisRight(legendScale).ticks(6).tickFormat(d3.format(","))
-          );
         }
 
         function updatePop() {
