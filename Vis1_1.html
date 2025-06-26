@@ -103,6 +103,12 @@
 
     #selectedNames {
       margin-top: 0.5vw;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      max-width: 100%;
+      min-height: 28px;
     }
 
     #selectedNames span {
@@ -112,13 +118,15 @@
       border-radius: 5px;
       padding: 2px 8px;
       margin: 2px;
-      font-size: 7px;
+      font-size: 11px;
       cursor: pointer;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       font-weight: 500;
       color: #374151;
       transition: all 0.2s ease;
       position: relative;
+      max-width: 100%;
+      word-break: break-all;
     }
 
     #selectedNames span:hover {
@@ -193,12 +201,33 @@
       top: 12px;
       right: 12px;
       background: rgba(255,255,255,0.95);
-      padding: 10px 12px;
+      padding: 8px 10px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      font-size: 13px;
+      font-size: 12px;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       border: 1px solid #e5e7eb;
+      max-width: 90vw;
+      min-width: 80px;
+      z-index: 20;
+    }
+    @media (max-width: 600px) {
+      #legend {
+        right: 2vw;
+        top: 2vw;
+        font-size: 10px;
+        padding: 4px 6px;
+        min-width: 60px;
+      }
+      #selectedNames {
+        gap: 2px;
+        min-height: 20px;
+      }
+      #selectedNames span {
+        font-size: 9px;
+        padding: 1px 4px;
+        margin: 1px;
+      }
     }
 
     #legend div {
@@ -256,8 +285,8 @@
           <input id="nameInput" type="text" placeholder="Enter a name…" autocomplete="off" />
           <div id="suggestions"></div>
           <button id="addBtn">Add</button>
-          <button id="showTop5">Show Top5 Exploding Names</button>
-          <button id="showTop5Drop">Show Top5 Collapsing Names</button>
+          <button id="showTop5">Top5 Exploding Names</button>
+          <button id="showTop5Drop">Top5 Collapsing Names</button>
         </div>
         <div id="selectedNames"></div>
       </div>
@@ -269,7 +298,6 @@
   </div>
 
   <script>
-    // ✅ 全局变量
     let seriesMap = new Map();
     let selected = [];
     let render = () => {};
@@ -281,7 +309,7 @@
 
       const svg = d3.select("#chart").append("svg")
         .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
-        .attr("preserveAspectRatio", "none") // ✅ 自适应放大图表
+        .attr("preserveAspectRatio", "none")
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
@@ -350,12 +378,12 @@
           .data(selected, d => d)
           .join(
             enter => enter.append("span")
-              .text(d => d + " ✖")
+              .text(d => d)
               .on("click", (e, d) => {
                 selected = selected.filter(n => n !== d);
                 render();
               }),
-            update => update.text(d => d + " ✖"),
+            update => update.text(d => d),
             exit => exit.remove()
           );
 

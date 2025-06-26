@@ -281,8 +281,8 @@ function updateRankingCharts() {
   const bottomTen = rankingData.slice(-10).reverse();
   
   
-  renderRankingChart("#topChart", topTen, "#1f77b4", "Top 10");
-  renderRankingChart("#bottomChart", bottomTen, "#ff7f0e", "Bottom 10");
+  renderRankingChart("#topChart", topTen, "#a5e6ff", "Top 10");
+  renderRankingChart("#bottomChart", bottomTen, "#fff08f", "Bottom 10");
 
 }
 
