@@ -1,7 +1,7 @@
 # Visualization project
 Group J - Kimia Senichault, Jingru Sang, Nazrin Nasirova, Yuanyuan Zhang
 
-This project contains three visualizations in `main.html`.
+This project contains three visualizations in `index.html`.
 
 ### Steps to Run:
 
@@ -15,7 +15,7 @@ python -m http.server 8000
 Open your browser and go to:
 
 ```bash
-http://localhost:8000/main.html
+http://localhost:8000/index.html
 ```
-This will load the main.html file with all three visualizations.
+This will load the index.html file with all three visualizations.
 
