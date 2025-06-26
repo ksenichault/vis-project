@@ -1,254 +1,264 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Visualization 1 – Baby-Name Trends</title>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/tailwindcss@^3/dist/tailwind.min.css" />
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f8fafc;
-      margin: 0;
-      padding: 0;
-    }
-    .main-container {
-      width: 100%;
-      min-height: 100vh;
-      padding: 10px;
-      box-sizing: border-box;
-    }
-    .content-wrapper {
-      display: flex;
-      gap: 15px;
-      height: calc(100vh - 25px);
-      min-height: 500px;
-    }
-    .left-panel {
-      flex: 1;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 15px;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    .ranking-wrapper,
-    .left-lower-iframe {
-      flex: 1;
-      width: 100%;
-      height: 100%;
-      border: none;
-      border-radius: 6px;
-      box-sizing: border-box;
-    }
-
-
-    .ranking-row {
-      display: flex;
-      flex: 2;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .ranking-row .ranking-section {
-      flex: 1;
-      padding: 12px;
-      box-sizing: border-box;
-      margin-bottom: 0;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      min-height: 0;
-    }
-
-    .year-control {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 2px 6px; /* 减少 padding */
-      background: #f8fafc;
-      border-radius: 6px;
-      border: 1px solid #e5e7eb;
-      width: 100%;
-      box-sizing: border-box;
-      min-height: 0;
-    }
-
-    .ranking-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #374151;
-      margin-bottom: 10px;
-      text-align: center;
-    }
-
-    .year-control h4 {
-      font-size: 14px;
-      font-weight: 500;
-      color: #374151;
-      margin: 0 0 2px 0;  /* 原本是 10px */
-      text-align: center;
-    }
-
-    .year-slider {
-      width: 100%;
-      margin: 10px 0;
-      height: 6px;
-      border-radius: 3px;
-      background: #d1d5db;
-      outline: none;
-      appearance: none;
-    }
-
-    .year-slider::-webkit-slider-thumb,
-    .year-slider::-moz-range-thumb,
-    .year-slider::-ms-thumb {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #6b7280;
-      cursor: pointer;
-      border: 2px solid white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-
-    .year-slider::-webkit-slider-track,
-    .year-slider::-moz-range-track,
-    .year-slider::-ms-fill-lower,
-    .year-slider::-ms-fill-upper {
-      height: 6px;
-      background: #d1d5db;
-      border-radius: 3px;
-    }
-
-    .year-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #666;
-      margin-top: 2px;
-    }
-
-    .right-panel {
-      flex: 1;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 15px 15px 10px 15px;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    .heatmap-container {
-      flex: 1;
-      overflow: auto;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 8px;
-      min-height: 0;
-      margin-bottom: 0;
-    }
-
-    .heatmap-controls {
-      margin-bottom: 15px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #e5e7eb;
-      flex-shrink: 0;
-    }
-
-    .heatmap-controls label {
-      display: block;
-      font-size: 14px;
-      font-weight: 500;
-      color: #374151;
-      margin-bottom: 6px;
-    }
-
-    .heatmap-controls select {
-      width: 100%;
-      font-size: 13px;
-      padding: 6px 10px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      background: white;
-    }
-
-    @media (max-width: 1024px) {
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visualization 1 – Baby-Name Trends</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/tailwindcss@^3/dist/tailwind.min.css"
+    />
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f7f7f7;
+        margin: 0;
+        padding: 0;
+      }
+      .main-container {
+        width: 100%;
+        min-height: 100vh;
+        padding: 10px;
+        box-sizing: border-box;
+      }
       .content-wrapper {
-        flex-direction: column;
-        height: auto;
-        gap: 10px;
+        display: flex;
+        gap: 15px;
+        height: calc(100vh - 25px);
+        min-height: 500px;
       }
       .left-panel {
-        min-height: 150px;
+        flex: 1;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         padding: 15px;
-      }
-      .right-panel {
-        min-height: 400px;
-        padding: 15px;
-      }
-      .ranking-row {
+        display: flex;
         flex-direction: column;
+        min-width: 0;
       }
-    }
 
-    @media (max-width: 768px) {
-      .main-container {
-        padding: 10px;
+      .ranking-wrapper,
+      .left-lower-iframe {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        border: none;
+        border-radius: 6px;
+        box-sizing: border-box;
       }
-      .chart-title {
-        font-size: 1.5rem;
+
+      .ranking-row {
+        display: flex;
+        flex: 2;
+        gap: 10px;
+        margin-bottom: 10px;
       }
-      .subtitle {
-        font-size: 0.9rem;
+
+      .ranking-row .ranking-section {
+        flex: 1;
+        padding: 12px;
+        box-sizing: border-box;
+        margin-bottom: 0;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        min-height: 0;
       }
-    }
-  </style>
-</head>
-<body>
-  <div class="main-container">
-    <div class="content-wrapper">
-      <div class="left-panel">
-        <div class="ranking-wrapper">
-          <div class="ranking-row">
-            <div class="ranking-section" id="topRanking">
-              <div class="ranking-title">TOP 10 NAME</div>
-              <svg id="topChart"></svg>
+
+      .year-control {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 2px 6px; /* 减少 padding */
+        /* background: #eeeaea;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb; */
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 0;
+      }
+
+      .ranking-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 10px;
+        text-align: center;
+      }
+
+      .year-control h4 {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+        margin: 0 0 2px 0; /* 原本是 10px */
+        text-align: center;
+      }
+
+      .year-slider {
+        width: 100%;
+        margin: 10px 0;
+        height: 6px;
+        border-radius: 3px;
+        background: #d1d5db;
+        outline: none;
+        appearance: none;
+      }
+
+      .year-slider::-webkit-slider-thumb,
+      .year-slider::-moz-range-thumb,
+      .year-slider::-ms-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #6b7280;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .year-slider::-webkit-slider-track,
+      .year-slider::-moz-range-track,
+      .year-slider::-ms-fill-lower,
+      .year-slider::-ms-fill-upper {
+        height: 6px;
+        background: #d1d5db;
+        border-radius: 3px;
+      }
+
+      .year-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+      }
+
+      .right-panel {
+        flex: 1;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 15px 15px 10px 15px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .heatmap-container {
+        flex: 1;
+        overflow: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 8px;
+        min-height: 0;
+        margin-bottom: 0;
+      }
+
+      .heatmap-controls {
+        margin-bottom: 15px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        flex-shrink: 0;
+      }
+
+      .heatmap-controls label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 6px;
+      }
+
+      .heatmap-controls select {
+        width: 100%;
+        font-size: 13px;
+        padding: 6px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: white;
+      }
+
+      @media (max-width: 1024px) {
+        .content-wrapper {
+          flex-direction: column;
+          height: auto;
+          gap: 10px;
+        }
+        .left-panel {
+          min-height: 150px;
+          padding: 15px;
+        }
+        .right-panel {
+          min-height: 400px;
+          padding: 15px;
+        }
+        .ranking-row {
+          flex-direction: column;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .main-container {
+          padding: 10px;
+        }
+        .chart-title {
+          font-size: 1.5rem;
+        }
+        .subtitle {
+          font-size: 0.9rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <div class="content-wrapper">
+        <div class="left-panel">
+          <div class="ranking-wrapper">
+            <div class="ranking-row">
+              <div class="ranking-section" id="topRanking">
+                <div class="ranking-title">TOP 10 NAME</div>
+                <svg id="topChart"></svg>
+              </div>
+              <div class="ranking-section" id="bottomRanking">
+                <div class="ranking-title">BOTTOM 10 NAME</div>
+                <svg id="bottomChart"></svg>
+              </div>
             </div>
-            <div class="ranking-section" id="bottomRanking">
-              <div class="ranking-title">BOTTOM 10 NAME</div>
-              <svg id="bottomChart"></svg>
+            <div class="year-control">
+              <h4>
+                Please select the year: <span id="yearDisplay">2020</span>
+              </h4>
+              <input type="range" id="yearSlider" class="year-slider" />
+              <div class="year-labels">
+                <span>1990</span>
+                <span>2020</span>
+              </div>
             </div>
           </div>
-          <div class="year-control">
-            <h4>Please select the year: <span id="yearDisplay">2020</span></h4>
-            <input type="range" id="yearSlider" class="year-slider">
-            <div class="year-labels">
-              <span>1990</span>
-              <span>2020</span>
-            </div>
-          </div>
+          <iframe
+            src="Vis1_1.html"
+            class="left-lower-iframe"
+            title="Name Trends Detail Visualization"
+          ></iframe>
         </div>
-        <iframe src="Vis1_1.html" class="left-lower-iframe" title="Name Trends Detail Visualization"></iframe>
-      </div>
 
-      <div class="right-panel">
-        <div class="heatmap-controls">
-          <label for="groupSelect">Please select the group (According to the first letter)</label>
-          <select id="groupSelect"></select>
-        </div>
-        <div class="heatmap-container">
-          <div id="chartContainer"></div>
+        <div class="right-panel">
+          <div class="heatmap-controls">
+            <label for="groupSelect"
+              >Please select the group (According to the first letter)</label
+            >
+            <select id="groupSelect"></select>
+          </div>
+          <div class="heatmap-container">
+            <div id="chartContainer"></div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <script type="module" src="./js/Vis1.js"></script>
-</body>
+    <script type="module" src="./js/Vis1.js"></script>
+  </body>
 </html>
