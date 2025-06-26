@@ -1,6 +1,6 @@
 Promise.all([
-  d3.json("df_plot.json"),
-  d3.json("df_pct.json")
+  d3.json("data/df_plot.json"),
+  d3.json("data/df_pct.json")
 ]).then(([df_plot, df_pct]) => {
 
   // SLIDER //
