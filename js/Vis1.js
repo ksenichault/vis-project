@@ -1,7 +1,7 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 const file = "./data/dpt2020.csv";
-const startYear = 1990;
+const startYear = 1900;
 const endYear   = 2020;
 const maxRowsPerGroup = 40; // Every group contains 40 rows
 const topN = 400; // Top 400 names
